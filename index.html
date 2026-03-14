@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrador de Contactos</title>
+
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        
+        #bton-abrir-menu {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        dialog {
+            border: none;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            width: 300px;
+        }
+
+        dialog::backdrop {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .menu-body { display: flex; flex-direction: column; gap: 10px; }
+
+        .acciones {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .panel-principal {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .card {
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px;
+            width: 220px;
+            background: white;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .btn-edit { color: blue; cursor: pointer; border: 1px solid blue; background: none; border-radius: 4px; padding: 2px 8px; }
+        .btn-delete { color: red; cursor: pointer; border: 1px solid red; background: none; border-radius: 4px; padding: 2px 8px; }
+    </style>
+</head>
+
+<body>
+
+    <h1>Administrador de contactos</h1>
+    <p>Gestiona tus contactos personales</p>
+
+    <div class="panel-principal">
+        <div>
+            <label><strong>Filtrar Categoría:</strong></label><br>
+            <select id="filtro-categoria" onchange="filtrarPorCategoria()">
+                <option value="todos">Mostrar Todos</option>
+                <option value="familia">Familia</option>
+                <option value="trabajo">Trabajo</option>
+                <option value="amigos">Amigos</option>
+            </select>
+        </div>
+
+        <div>
+            <label><strong>Buscar contacto:</strong></label><br>
+            <input type="text" id="input-busqueda" oninput="buscarContacto()" placeholder="Nombre o teléfono...">
+        </div>
+
+        <button id="bton-abrir-menu">Agregar Nuevo</button>
+    </div>
+
+    <dialog id="menu">
+        <h2>Nuevo Contacto</h2>
+        <div class="menu-body">
+            <label>Nombre:</label>
+            <input type="text" id="input-nombre">
+
+            <label>Teléfono:</label>
+            <input type="text" id="input-telefono">
+
+            <label>Correo:</label>
+            <input type="text" id="input-correo">
+
+            <label>Categoría:</label>
+            <select id="categoria">
+                <option value="familia">Familia</option>
+                <option value="trabajo">Trabajo</option>
+                <option value="amigos">Amigos</option>
+            </select>
+
+            <div class="acciones">
+                <button id="bton-cancelar">Cancelar</button>
+                <button id="bton-guardar-nombre">Guardar</button>
+            </div>
+        </div>
+    </dialog>
+
+    <div id="contenedor-contactos" style="display: flex; flex-wrap: wrap;"></div>
+
+    <script>
+        let contactos = [];
+        let editandoId = null;
+
+        const menu = document.getElementById('menu');
+        const btnAbrir = document.getElementById('bton-abrir-menu');
+        const btnCancelar = document.getElementById('bton-cancelar');
+        const btnGuardar = document.getElementById('bton-guardar-nombre');
+        const contenedor = document.getElementById('contenedor-contactos');
+
+        function cargarContactos() {
+            const datosGuardados = localStorage.getItem('contactos');
+            if (datosGuardados) {
+                contactos = JSON.parse(datosGuardados);
+                mostrarContactos();
+            }
+        }
+
+        function guardarContactos() {
+            localStorage.setItem('contactos', JSON.stringify(contactos));
+        }
+
+        function mostrarContactos(listaADibujar = contactos) {
+            contenedor.innerHTML = ""; 
+            listaADibujar.forEach((item) => {
+                const card = document.createElement('div');
+                card.className = "card";
+                card.innerHTML = `
+                    <h3>${item.nombre}</h3>
+                    <p>📞 ${item.telefono}</p>
+                    <p>📧 ${item.correo}</p>
+                    <p>🏷️ ${item.categoria}</p>
+                    <div style="display: flex; gap: 10px; margin-top: 10px;">
+                        <button class="btn-edit" onclick="prepararEdicion(${item.id})">Editar</button>
+                        <button class="btn-delete" onclick="eliminarContacto(${item.id})">Eliminar</button>
+                    </div>
+                `;
+                contenedor.appendChild(card);
+            });
+        }
+
+        function buscarContacto() {
+            const texto = document.getElementById('input-busqueda').value.toLowerCase();
+            const filtrados = contactos.filter(c => {
+                return c.nombre.toLowerCase().includes(texto) || c.telefono.includes(texto);
+            });
+            mostrarContactos(filtrados);
+        }
+
+        function filtrarPorCategoria() {
+            const seleccion = document.getElementById('filtro-categoria').value;
+            if (seleccion === "todos") {
+                mostrarContactos(contactos);
+            } else {
+                const filtrados = contactos.filter(c => c.categoria === seleccion);
+                mostrarContactos(filtrados);
+            }
+        }
+
+        btnAbrir.onclick = () => {
+            editandoId = null;
+            document.querySelector('#menu h2').innerText = "Nuevo Contacto";
+            limpiarCampos();
+            menu.showModal();
+        };
+
+        btnCancelar.onclick = () => {
+            menu.close();
+            limpiarCampos();
+        };
+
+        btnGuardar.onclick = function () {
+            const nombre = document.getElementById('input-nombre').value;
+            const telefono = document.getElementById('input-telefono').value;
+            const correo = document.getElementById('input-correo').value;
+            const categoria = document.getElementById('categoria').value;
+
+            if (nombre.trim() === "") return alert("El nombre es obligatorio");
+
+            if (editandoId) {
+                const index = contactos.findIndex(c => c.id === editandoId);
+                contactos[index] = { ...contactos[index], nombre, telefono, correo, categoria };
+                editandoId = null;
+            } else {
+                const nuevo = { id: Date.now(), nombre, telefono, correo, categoria };
+                contactos.push(nuevo);
+            }
+
+            guardarContactos();
+            mostrarContactos();
+            menu.close();
+            limpiarCampos();
+        };
+
+        function prepararEdicion(id) {
+            const contacto = contactos.find(c => c.id === id);
+            if (contacto) {
+                document.getElementById('input-nombre').value = contacto.nombre;
+                document.getElementById('input-telefono').value = contacto.telefono;
+                document.getElementById('input-correo').value = contacto.correo;
+                document.getElementById('categoria').value = contacto.categoria;
+
+                editandoId = id;
+                document.querySelector('#menu h2').innerText = "Editar Contacto";
+                menu.showModal();
+            }
+        }
+
+        function eliminarContacto(id) {
+            contactos = contactos.filter(c => c.id !== id);
+            guardarContactos();
+            mostrarContactos();
+        }
+
+        function limpiarCampos() {
+            document.getElementById('input-nombre').value = "";
+            document.getElementById('input-telefono').value = "";
+            document.getElementById('input-correo').value = "";
+            document.getElementById('categoria').value = "familia";
+        }
+
+        cargarContactos();
+    </script>
+</body>
+</html>
